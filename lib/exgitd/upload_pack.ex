@@ -11,7 +11,7 @@ defmodule ExGitd.UploadPack do
   end
 
   defp reflist(repo, [h|rest], acc) do
-    ref = repo.lookup(h)
+    ref = repo.lookup(h).resolve
     p = {Git.oid_fmt(ref.id), h}
     reflist(repo, rest, [p|acc])
   end
@@ -19,16 +19,16 @@ defmodule ExGitd.UploadPack do
   def reflist(path) do
     repo = Git.repository(path)
     refs = repo.references
-    reflist(repo, refs, [])
+    reflist(repo, ["HEAD" | refs], [])
   end
 
   defp pkt_line([{sha, name}|rest], acc) do
-    len = size(sha) + size(name) + 4 + 1
+    len = size(sha) + size(name) + 4 + 1 + 1
     line = :io_lib.format("~4.16.0b#{sha} #{name}\n", [len])
     pkt_line(rest, [line|acc])
   end
 
-  defp pkt_line([], acc), do: acc
+  defp pkt_line([], acc), do: [acc, "0000"]
   defp pkt_line(list) do
     # sort reverse-alpha so pkt_line gets it right
     sorted = Enum.sort list, fn({_, a}, {_, b}) -> a > b end

@@ -26,6 +26,9 @@ end
 # For use with ranch
 defmodule ExGitd.Protocol do
   alias :ranch, as: Ranch
+  alias ExGitd.UploadPack, as: UP
+
+  @behaviour :ranch_protocol
 
   def start_link(pid, sock, transport, opts) do
     pid = spawn_link(__MODULE__, :init, [pid, sock, transport, opts])
@@ -40,7 +43,7 @@ defmodule ExGitd.Protocol do
   def loop(sock, transport) do
     case transport.recv(sock, 0, 50000) do
       { :ok, data } ->
-	transport.send(sock, "Welcome to ExGitd\n")
+	transport.send(sock, UP.advertise_refs("."))
 	loop(sock, transport)
       _ ->
 	:ok = transport.close(sock)
