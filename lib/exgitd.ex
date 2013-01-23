@@ -1,19 +1,49 @@
-defmodule Exgitd do
-  alias :geef, as: Git
+defmodule ExGitd do
+  use Application.Behaviour
+  alias :ranch, as: Ranch
 
-  def reflist(_, [], acc) do
-    Enum.sort acc, fn({_, a}, {_, b}) -> a < b end
+  def start(_type, args) do
+    Application.Behaviour.start(Ranch)
+    { :ok, _ } = Ranch.start_listener(:tcp_greeter, 1, :ranch_tcp,
+    [ { :port, 5555} ], ExGitd.Protocol, [])
+    __MODULE__.Sup.start_link(args)
+  end
+end
+
+defmodule ExGitd.Sup do
+  use Supervisor.Behaviour
+
+  def start_link(opts // []) do
+    { :ok, pid } = :supervisor.start_link({ :local, __MODULE__}, __MODULE__, opts)
   end
 
-  def reflist(repo, [h|rest], acc) do
-    ref = repo.lookup(h)
-    p = {Git.oid_fmt(ref.id), h}
-    reflist(repo, rest, [p|acc])
+  def init(_opts) do
+    tree = [ worker(ExGitd.UploadPack, []) ]
+    supervise(tree, strategy: :one_for_one)
+  end
+end
+
+# For use with ranch
+defmodule ExGitd.Protocol do
+  alias :ranch, as: Ranch
+
+  def start_link(pid, sock, transport, opts) do
+    pid = spawn_link(__MODULE__, :init, [pid, sock, transport, opts])
+    { :ok, pid }
   end
 
-  def reflist(path) do
-    repo = Git.repository(path)
-    refs = repo.references
-    reflist(repo, refs, [])
+  def init(pid, sock, transport, _opts // []) do
+    :ok = Ranch.accept_ack(pid)
+    loop(sock, transport)
+  end
+
+  def loop(sock, transport) do
+    case transport.recv(sock, 0, 50000) do
+      { :ok, data } ->
+	transport.send(sock, "Welcome to ExGitd\n")
+	loop(sock, transport)
+      _ ->
+	:ok = transport.close(sock)
+    end
   end
 end

@@ -15,6 +15,7 @@ defmodule Exgitd.Mixfile do
   # Returns the list of dependencies in the format:
   # { :foobar, "0.1", git: "https://github.com/elixir-lang/foobar.git" }
   defp deps do
-    [{ :geef, git: "git://github.com/carlosmn/geef" }]
+    [{ :geef, git: "git://github.com/carlosmn/geef" },
+     { :ranch, git: "git://github.com/extend/ranch" }]
   end
 end
