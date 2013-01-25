@@ -1,6 +1,8 @@
 defmodule ExGitd.UploadPack do
   use GenServer.Behaviour
-  alias :geef, as: Git
+  alias :geef_repo, as: Repo
+  alias :geef_ref, as: Ref
+  alias :geef_oid, as: Oid
 
   def start_link do
     :gen_server.start_link(__MODULE__, [], [])
@@ -11,14 +13,15 @@ defmodule ExGitd.UploadPack do
   end
 
   defp reflist(repo, [h|rest], acc) do
-    ref = repo.lookup(h).resolve
-    p = {Git.oid_fmt(ref.id), h}
-    reflist(repo, rest, [p|acc])
+    {:ok, ref} = Ref.lookup(repo, h)
+    {:ok, ref} = Ref.resolve(ref)
+    line = {Oid.fmt(Ref.target(ref)), h}
+    reflist(repo, rest, [line|acc])
   end
 
   def reflist(path) do
-    repo = Git.repository(path)
-    refs = repo.references
+    {:ok, repo} = Repo.open(path)
+    refs = Repo.references(repo)
     reflist(repo, ["HEAD" | refs], [])
   end
 

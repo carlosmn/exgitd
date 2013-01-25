@@ -2,6 +2,8 @@ defmodule ExGitd do
   use Application.Behaviour
   alias :ranch, as: Ranch
 
+  def start(), do: start(nil, [])
+
   def start(_type, args) do
     Application.Behaviour.start(Ranch)
     { :ok, _ } = Ranch.start_listener(:tcp_greeter, 1, :ranch_tcp,
@@ -14,7 +16,7 @@ defmodule ExGitd.Sup do
   use Supervisor.Behaviour
 
   def start_link(opts // []) do
-    { :ok, pid } = :supervisor.start_link({ :local, __MODULE__}, __MODULE__, opts)
+    { :ok, _pid } = :supervisor.start_link({ :local, __MODULE__}, __MODULE__, opts)
   end
 
   def init(_opts) do
