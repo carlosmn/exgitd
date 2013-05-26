@@ -41,8 +41,8 @@ defmodule ExGitd.UploadPack do
 
   defp reflist(repo, [h|rest], acc) do
     {:ok, ref} = Ref.lookup(repo, h)
-    {:ok, ref} = Ref.resolve(ref)
-    line = {Oid.fmt(Ref.target(ref)), h}
+    {:ok, ref} = ref.resolve
+    line = {ref.target.hex, h}
     reflist(repo, rest, [line|acc])
   end
 
