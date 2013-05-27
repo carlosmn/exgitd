@@ -44,7 +44,7 @@ defmodule ExGitd.UploadPack do
   @spec advertise_refs(pid()) :: iolist
   defp advertise_refs(repo) do
     refnames = Repo.references(repo)
-    refnames = Enum.sort refnames, &1 > &2
+    refnames = Enum.sort refnames, &1 < &2
     refs = Enum.map ["HEAD" | refnames], resolve_ref repo, &1
     refs = Enum.map refs, :geef_pkt.line &1
     [refs, "0000"]
