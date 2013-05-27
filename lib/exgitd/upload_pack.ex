@@ -35,38 +35,18 @@ defmodule ExGitd.UploadPack do
     { :noreply, state }
   end
 
-  defp reflist(_, [], acc) do
-    Enum.sort acc, fn({_, a}, {_, b}) -> a > b end
-  end
-
-  defp reflist(repo, [h|rest], acc) do
-    {:ok, ref} = Ref.lookup(repo, h)
+  defp resolve_ref(repo, name) do
+    {:ok, ref} = Ref.lookup(repo, name)
     {:ok, ref} = ref.resolve
-    line = {ref.target.hex, h}
-    reflist(repo, rest, [line|acc])
+    [ref.target.hex, " ", name]
   end
 
-  def reflist(repo) do
-    refs = Repo.references(repo)
-    reflist(repo, ["HEAD" | refs], [])
-  end
-
-  defp pkt_line([{sha, name}|rest], acc) do
-    len = size(sha) + size(name) + 4 + 1 + 1
-    line = :io_lib.format("~4.16.0b#{sha} #{name}\n", [len])
-    pkt_line(rest, [line|acc])
-  end
-
-  defp pkt_line([], acc), do: [acc, "0000"]
-  defp pkt_line(list) do
-    # sort reverse-alpha so pkt_line gets it right
-    sorted = Enum.sort list, fn({_, a}, {_, b}) -> a > b end
-    pkt_line(sorted, [])
-  end
-
-  @spec advertise_refs(String.t) :: iolist
-  def advertise_refs(repo) do
-    refs = reflist(repo)
-    pkt_line(refs)
+  @spec advertise_refs(pid()) :: iolist
+  defp advertise_refs(repo) do
+    refnames = Repo.references(repo)
+    refnames = Enum.sort refnames, &1 > &2
+    refs = Enum.map ["HEAD" | refnames], resolve_ref repo, &1
+    refs = Enum.map refs, :geef_pkt.line &1
+    [refs, "0000"]
   end
 end
