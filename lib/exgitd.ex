@@ -36,8 +36,12 @@ end
 defmodule ExGitd.Protocol do
   alias :ranch, as: Ranch
   alias ExGitd.UploadPack, as: UP
+  alias :geef_pkt, as: Pkt
 
   @behaviour :ranch_protocol
+
+  @base "/home/carlos/git"
+
 
   def start_link(pid, sock, transport, opts) do
     pid = spawn_link(__MODULE__, :init, [pid, sock, transport, opts])
@@ -46,18 +50,39 @@ defmodule ExGitd.Protocol do
 
   def init(pid, sock, transport, _opts // []) do
     :ok = Ranch.accept_ack(pid)
-    {:ok, pid} = UP.start_link(".")
-    loop(sock, transport, pid)
+    #{:ok, pid} = UP.start_link(".")
+    loop(sock, transport, nil, <<>>)
   end
 
-  def loop(sock, transport, pid) do
+  # Call this while we haven't parsed the request
+  def loop(sock, transport, nil, data_in) do
     case transport.recv(sock, 0, 50000) do
-      { :ok, data } ->
-	transport.send(sock, UP.advertisement(pid))
-	loop(sock, transport, pid)
+      { :ok, new_data } ->
+        data = [data_in, new_data]
+        case Pkt.parse_request(data) do
+          { :error, :ebufs } ->
+            loop(sock, transport, nil, data)
+          { :ok, request } ->
+            { :geef_request, _service, path, _host } = request
+            path = @base <> path
+            IO.puts path
+            { :ok, pid } = UP.start_link(path)
+	          transport.send(sock, UP.advertisement(pid))
+            loop(sock, transport, pid, [])
+        end
       _ ->
-	UP.terminate(pid)
-	:ok = transport.close(sock)
+        { :error, :recv }
+    end
+  end
+
+  def loop(sock, transport, pid, data_in) do
+    case transport.recv(sock, 0, 50000) do
+      { :ok, new_data } ->
+        data = [data_in, new_data]
+	      loop(sock, transport, pid, data)
+      _ ->
+	      UP.terminate(pid)
+	      :ok = transport.close(sock)
     end
   end
 end
