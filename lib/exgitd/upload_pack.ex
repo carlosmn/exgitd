@@ -35,18 +35,41 @@ defmodule ExGitd.UploadPack do
     { :noreply, state }
   end
 
-  defp resolve_ref(repo, name) do
+  defp peel_tag(repo, ref, name) do
+    { :ok, obj } = :geef_object.lookup(repo, ref.target)
+    case obj.type do
+      :tag ->
+        { :ok, peeled } = :geef_tag.peel(obj)
+        [peeled.id.hex, " ", name, "^{}"]
+      _ ->
+        []
+    end
+  end
+
+  defp pkt_tag(base, []) do
+    :geef_pkt.line(base)
+  end
+  defp pkt_tag(base, peeled) do
+    [:geef_pkt.line(base), :geef_pkt.line(peeled)]
+  end
+
+  defp pkt_ref(repo, name) do
     {:ok, ref} = Ref.lookup(repo, name)
     {:ok, ref} = ref.resolve
-    [ref.target.hex, " ", name]
+    base = [ref.target.hex, " ", name]
+    case name do
+      <<"refs/tags/", _ :: binary>> ->
+        pkt_tag(base, peel_tag(repo, ref, name))
+      _ ->
+        :geef_pkt.line(base)
+    end
   end
 
   @spec advertise_refs(pid()) :: iolist
   defp advertise_refs(repo) do
     refnames = Repo.references(repo)
     refnames = Enum.sort refnames, &1 < &2
-    refs = Enum.map ["HEAD" | refnames], resolve_ref repo, &1
-    refs = Enum.map refs, :geef_pkt.line &1
+    refs = Enum.map ["HEAD" | refnames], pkt_ref repo, &1
     [refs, "0000"]
   end
 end
