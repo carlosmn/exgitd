@@ -9,7 +9,8 @@ defmodule Exgitd.Mixfile do
 
   # Configuration for the OTP application
   def application do
-    []
+    [registered: [:exgitd],
+     mod: { ExGitd, []}]
   end
 
   # Returns the list of dependencies in the format:

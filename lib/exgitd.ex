@@ -4,7 +4,7 @@ defmodule ExGitd do
 
   defp start_ranch do
     Application.Behaviour.start(Ranch)
-    case Ranch.start_listener(:tcp_greeter, 1, :ranch_tcp, [ {:port, 5555} ], ExGitd.Protocol, []) do
+    case Ranch.start_listener(:exgitd, 1, :ranch_tcp, [ {:port, 5555} ], ExGitd.Protocol, []) do
       {:ok, pid} ->
 	{:ok, pid}
       {:error, {:already_started, pid}} ->
@@ -17,6 +17,10 @@ defmodule ExGitd do
   def start(_type, args) do
     start_ranch()
     __MODULE__.Sup.start_link(args)
+  end
+
+  def stop(_state) do
+    Ranch.stop_listener(:exgitd)
   end
 end
 
@@ -40,7 +44,7 @@ defmodule ExGitd.Protocol do
 
   @behaviour :ranch_protocol
 
-  @base "/home/carlos/git"
+  @base System.get_env("HOME") <> "/git"
 
 
   def start_link(pid, sock, transport, opts) do
@@ -50,7 +54,6 @@ defmodule ExGitd.Protocol do
 
   def init(pid, sock, transport, _opts // []) do
     :ok = Ranch.accept_ack(pid)
-    #{:ok, pid} = UP.start_link(".")
     loop(sock, transport, nil, <<>>)
   end
 
@@ -65,7 +68,6 @@ defmodule ExGitd.Protocol do
           { :ok, request } ->
             { :geef_request, _service, path, _host } = request
             path = @base <> path
-            IO.puts path
             { :ok, pid } = UP.start_link(path)
 	          transport.send(sock, UP.advertisement(pid))
             loop(sock, transport, pid, [])
