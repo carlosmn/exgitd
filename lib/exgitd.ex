@@ -4,7 +4,7 @@ defmodule ExGitd do
 
   defp start_ranch do
     Application.Behaviour.start(Ranch)
-    case Ranch.start_listener(:exgitd, 1, :ranch_tcp, [ {:port, 5555} ], ExGitd.Protocol, []) do
+    case Ranch.start_listener(:exgitd, 1, :ranch_tcp, [ {:port, 9418} ], ExGitd.Protocol, []) do
       {:ok, pid} ->
 	{:ok, pid}
       {:error, {:already_started, pid}} ->
