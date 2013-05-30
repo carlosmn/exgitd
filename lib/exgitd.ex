@@ -42,6 +42,9 @@ defmodule ExGitd.Protocol do
   alias ExGitd.UploadPack, as: UP
   alias :geef_pkt, as: Pkt
 
+  defrecord :geef_request, Record.extract(:geef_request,
+                                          from: "deps/geef/src/geef_records.hrl")
+
   @behaviour :ranch_protocol
 
   @base System.get_env("HOME") <> "/git"
@@ -65,8 +68,7 @@ defmodule ExGitd.Protocol do
         case Pkt.parse_request(data) do
           { :error, :ebufs } ->
             loop(sock, transport, nil, data)
-          { :ok, request } ->
-            { :geef_request, _service, path, _host } = request
+          { :ok, :geef_request[path: path]} ->
             path = @base <> path
             { :ok, pid } = UP.start_link(path)
 	          transport.send(sock, UP.advertisement(pid))
