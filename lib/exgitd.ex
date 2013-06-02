@@ -71,7 +71,7 @@ defmodule ExGitd.Protocol do
           { :ok, :geef_request[path: path]} ->
             path = @base <> path
             { :ok, pid } = UP.start_link(path)
-	          transport.send(sock, UP.advertisement(pid))
+	          transport.send(sock, UP.response(pid))
             loop(sock, transport, pid, [])
         end
       _ ->
@@ -83,9 +83,15 @@ defmodule ExGitd.Protocol do
     case transport.recv(sock, 0, 50000) do
       { :ok, new_data } ->
         data = [data_in, new_data]
-	      loop(sock, transport, pid, data)
+        case UP.continue(pid, data) do
+          {:more, data} ->
+	          loop(sock, transport, pid, data)
+          {:response, data} ->
+            transport.send(sock, UP.response(pid))
+            loop(sock, transport, pid, data)
+        end
       _ ->
-	      UP.terminate(pid)
+	      UP.stop(pid)
 	      :ok = transport.close(sock)
     end
   end
