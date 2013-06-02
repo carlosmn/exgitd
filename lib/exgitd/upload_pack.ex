@@ -58,7 +58,9 @@ defmodule ExGitd.UploadPack do
   end
 
   @doc false
-  def terminate(:normal, _, _state) do
+  def terminate(:normal, _, state(repo: repo, odb: odb)) do
+    Repo.stop(repo)
+    if odb, do: Odb.stop(odb)
     :ok
   end
 
