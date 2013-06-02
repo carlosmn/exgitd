@@ -6,7 +6,7 @@ defmodule ExGitd.UploadPack do
 
   @behaviour :gen_fsm
 
-  defrecordp :state, repo: nil, advertised: [], common: [], want: [], done: false
+  defrecordp :state, repo: nil, odb: nil, advertised: [], common: [], want: [], done: false
 
   # Public API
   def response(pid) do
@@ -26,15 +26,21 @@ defmodule ExGitd.UploadPack do
   The unconsumed input is always returned as the second field.
   """
   @spec continue(pid(), iolist()) :: {:more | :response, binary()}
+  def continue(_pid, <<>>), do: {:more, <<>>}
   def continue(pid, data) do
-    do_continue(pid, :geef_pkt.parse(data))
+    case :geef_pkt.parse(data) do
+      {:error, :ebufs} ->
+        {:more, data}
+      other ->
+        do_continue(pid, other)
+    end
   end
 
   defp do_continue(_pid, {:error, :ebufs} = err), do: err
   defp do_continue(pid, {pkt, rest}) do
     case :gen_fsm.sync_send_event(pid, pkt) do
       :more ->
-        do_continue(pid, :geef_pkt.parse(rest))
+        continue(pid, rest)
       other ->
         other
     end
@@ -68,27 +74,27 @@ defmodule ExGitd.UploadPack do
   end
 
   @doc false
-  def want({:want, id}, state(want: want) = state) do
+  def want({:want, id}, _from, state(want: want) = state) do
     {:reply, :more, :want, state(state, want: [id | want])}
   end
 
   @doc false
-  def want(:flush, state) do
+  def want(:flush, _from, state) do
     {:reply, :more, :have, state}
   end
 
   @doc false
-  def have({:have, id}, state) do
-    {:reply, :more, :hve, check_common(state, id)}
+  def have({:have, id}, _from, state) do
+    {:reply, :more, :have, check_common(state, id)}
   end
 
   @doc false
-  def have(:flush, state) do
+  def have(:flush, _from, state) do
     {:reply, :response, :have, state}
   end
 
   @doc false
-  def have(:done, state) do
+  def have(:done, _from, state) do
     {:reply, :pack, :pack, state}
   end
 
@@ -149,11 +155,14 @@ defmodule ExGitd.UploadPack do
     {[refs, "0000"], advertised}
   end
 
-  defp check_common(state(repo: repo, common: common), id) do
-    {:ok, odb} = Repo.odb(repo)
+  defp check_common(state(repo: repo, common: common, odb: odb) = state, id) do
+    if odb == nil do
+      {:ok, odb} = Repo.odb(repo)
+      state = state(state, odb: odb)
+    end
     case Odb.exists(odb, id) do
       true ->
-        state(common: [id | common])
+        state(state, common: [id | common])
       _ ->
         state
     end
