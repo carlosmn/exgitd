@@ -16,7 +16,7 @@ defmodule ExGitd do
 
   def start(_type, args) do
     start_ranch()
-    __MODULE__.Sup.start_link(args)
+    #__MODULE__.Sup.start_link(args)
   end
 
   def stop(_state) do

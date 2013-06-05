@@ -1,8 +1,8 @@
 defmodule ExGitd.UploadPack do
-  alias :geef_repo, as: Repo
-  alias :geef_ref, as: Ref
-  alias :geef_oid, as: Oid
-  alias :geef_odb, as: Odb
+  alias Geef.Repository
+  alias Geef.Reference
+  alias Geef.Object
+  alias Geef.Odb
 
   @behaviour :gen_fsm
 
@@ -14,7 +14,7 @@ defmodule ExGitd.UploadPack do
   end
 
   def start_link(path) do
-    :gen_fsm.start_link(__MODULE__, path, [])
+    :gen_fsm.start_link(__MODULE__, path, [{:spawn_opts, {:fullsweep_after, 0}}])
   end
 
   @doc """
@@ -53,13 +53,13 @@ defmodule ExGitd.UploadPack do
   # Callbacks
   @doc false
   def init(path) do
-    {:ok, repo} = Repo.open(path)
+    repo = Repository.open!(path)
     {:ok, :advertisement, state(repo: repo)}
   end
 
   @doc false
   def terminate(:normal, _, state(repo: repo, odb: odb)) do
-    Repo.stop(repo)
+    Repository.stop(repo)
     if odb, do: Odb.stop(odb)
     :ok
   end
@@ -124,8 +124,8 @@ defmodule ExGitd.UploadPack do
     {:next_state, state_name, state}
   end
 
-  defp peel_tag(repo, ref, name) do
-    { :ok, obj } = :geef_object.lookup(repo, ref.target)
+  defp peel_tag(repo, :geef_reference[target: target], name) do
+    obj = Object.lookup!(repo, target)
     case obj.type do
       :tag ->
         { :ok, peeled } = :geef_tag.peel(obj)
@@ -136,8 +136,7 @@ defmodule ExGitd.UploadPack do
   end
 
   defp pkt_ref(repo, name, {data, tips}) do
-    {:ok, ref} = Ref.lookup(repo, name)
-    {:ok, ref} = ref.resolve
+    ref = Reference.lookup!(repo, name) |> Reference.resolve!
     target = ref.target
     unpeeled = :geef_pkt.line([target.hex, " ", name])
     case name do
@@ -152,17 +151,17 @@ defmodule ExGitd.UploadPack do
 
   @spec advertise_refs(pid()) :: iolist
   defp advertise_refs(repo) do
-    refnames = Repo.references(repo) |> Enum.sort &1 < &2
+    refnames = Repository.reference_names(repo) |> Enum.sort &1 < &2
     {refs, advertised} = Enum.reduce ["HEAD" | refnames], {[], []}, pkt_ref repo, &1, &2
-    {[refs, "0000"], advertised}
+    {:binary.copy(iolist_to_binary([refs, "0000"])), advertised}
   end
 
   defp check_common(state(repo: repo, common: common, odb: odb) = state, id) do
-    if odb == nil do
-      {:ok, odb} = Repo.odb(repo)
+    if nil? odb do
+      odb = Repository.odb!(repo)
       state = state(state, odb: odb)
     end
-    case Odb.exists(odb, id) do
+    case Odb.exists?(odb, id) do
       true ->
         state(state, common: [id | common])
       _ ->
