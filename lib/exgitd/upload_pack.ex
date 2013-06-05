@@ -2,6 +2,7 @@ defmodule ExGitd.UploadPack do
   alias Geef.Repository
   alias Geef.Reference
   alias Geef.Object
+  alias Geef.Tag
   alias Geef.Odb
 
   @behaviour :gen_fsm
@@ -124,11 +125,11 @@ defmodule ExGitd.UploadPack do
     {:next_state, state_name, state}
   end
 
-  defp peel_tag(repo, :geef_reference[target: target], name) do
+  defp peel_tag(repo, Reference[target: target], name) do
     obj = Object.lookup!(repo, target)
     case obj.type do
       :tag ->
-        { :ok, peeled } = :geef_tag.peel(obj)
+        peeled = Tag.peel!(obj)
         [peeled.id.hex, " ", name, "^{}"]
       _ ->
         []
