@@ -154,7 +154,7 @@ defmodule ExGitd.UploadPack do
   defp advertise_refs(repo) do
     refnames = Repository.reference_names(repo) |> Enum.sort &1 < &2
     {refs, advertised} = Enum.reduce ["HEAD" | refnames], {[], []}, pkt_ref repo, &1, &2
-    {:binary.copy(iolist_to_binary([refs, "0000"])), advertised}
+    {[refs, "0000"], advertised}
   end
 
   defp check_common(state(repo: repo, common: common, odb: odb) = state, id) do
